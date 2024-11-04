@@ -1,0 +1,41 @@
+services:
+
+  firstService:
+    port: 6000
+    base_url: http://localhost
+    healthcheck: /healthcheck
+    prefix: /s1
+    endpoints:
+      get:
+        - /user
+        - /item
+        - /testing
+      put:
+        - /user/*/*/fdf
+        - /item/*/*
+      delete:
+        - /user/
+        - /item/
+      post:
+        - /user/create
+        - /item/create
+    timeout: 10
+    secret_key: mainServiceIsRestrictedOnly
+
+  secondService:
+    port: 6001
+    base_url: http://localhost
+    healthcheck: /healthcheck
+    prefix: /s2
+    endpoints:
+      get:
+        - /hello
+        - /user/*
+      put:
+        - /user/hello
+      delete:
+        - /user/delete/*
+      post:
+        - /user/create
+    timeout: 10        
+    secret_key: mainServiceIsRestrictedOnly

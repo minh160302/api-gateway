@@ -1,0 +1,8 @@
+flask
+pyyaml
+fastapi
+uvicorn
+requests
+httpx
+pydantic-settings
+# TODO: specify version
