@@ -5,4 +5,9 @@ uvicorn
 requests
 httpx
 pydantic-settings
+pytest=8.3.3
+pytest-asyncio=0.24.0
 # TODO: specify version
+
+# async-timeout-5.0.0 
+redis=5.2.0

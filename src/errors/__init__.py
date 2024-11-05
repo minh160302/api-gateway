@@ -3,3 +3,6 @@ class OnStartUpError(Exception):
 
 class IncorrectRouteError(Exception):
     pass
+
+class RateLimitExceededError(Exception):
+    pass

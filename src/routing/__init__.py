@@ -1,4 +1,3 @@
-import asyncio
 from json import JSONDecodeError
 from typing import Dict
 
@@ -6,8 +5,7 @@ import httpx
 from fastapi import Request
 
 from errors import IncorrectRouteError
-from models import GatewayConfiguration
-
+from models import GatewayConfiguration, redis
 
 async def ping_healthcheck():
     pass
@@ -54,12 +52,14 @@ async def route_request(GwConfig: GatewayConfiguration, endpoint_mappings: Dict[
             headers=request.headers,
             params=request.query_params,
             url=target_url,
-            timeout=service.timeout
+            timeout=service.timeout,
+            follow_redirects=True
         )
 
         # Fix bug: h11._util.LocalProtocolError: Too little data for declared Content-Length
         if 'content-length' in response.headers:
             del response.headers['content-length']
+                    
         return response
 
     except AssertionError:

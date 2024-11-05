@@ -2,31 +2,40 @@ import sys
 from contextlib import asynccontextmanager
 from http import HTTPStatus
 
-from fastapi import FastAPI, Request
+from aioredis import Redis
+from fastapi import Depends, FastAPI, Request
 from fastapi.responses import JSONResponse
 
+import ratelimit
+import routing
 from config import settings
-from errors import IncorrectRouteError, OnStartUpError
-from models import GatewayConfiguration
-from routing import route_request
+from errors import IncorrectRouteError, OnStartUpError, RateLimitExceededError
+from models import GatewayConfiguration, database, redis
 from utils import utils
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
-        # Init Gateway configuration
+        # Application startup
+        # 1.  Init Gateway configuration
         config: GatewayConfiguration = utils.parse_config_file(
             '/Users/nguyencanhminh/Downloads/code/infra/api-gateway/conf/gateway-conf.yml')
-        # save into settings for global usage
+        # 2. save into settings for global usage
         # TODO: sort for subsequent matchings
         # TODO: healthcheck before making connection
         settings.GwConfig = config
         for name, service in config.services.items():
             settings.endpoint_mappings[service.prefix] = name
-        # Application startup
+
+        # 3. Create database for persistent API infos
+        await database.init()
+        app.state.redis = await redis.init()
+        ###########
         yield
-        # TODO: Application shutdown
+        ###########
+        # Application shutdown
+        await database.destroy()
     except OnStartUpError as exc:
         print("OnStartUpError", exc)
         sys.exit(1)
@@ -56,12 +65,22 @@ async def auth_middleware(request: Request, call_next):
         return JSONResponse(status_code=HTTPStatus.UNAUTHORIZED, content={'reason': "Unauthorized"})
 
     try:
-        response = await route_request(settings.GwConfig, settings.endpoint_mappings, request)
+        redis_client: Redis = app.state.redis
+        
+        await ratelimit.check_rate_limit(redis_client, token)        
+        await ratelimit.endpoint_hit(redis_client, token)
+        
+        
+        response = await routing.route_request(settings.GwConfig, settings.endpoint_mappings, request)
         content = response.json() if response.headers.get(
             "content-type") == "application/json" else response.text
+
+
         return JSONResponse(status_code=response.status_code, content=content, headers=response.headers)
     except IncorrectRouteError as exc:
         return JSONResponse(status_code=HTTPStatus.NOT_FOUND, content={'reason': str(exc)})
+    except RateLimitExceededError as exc:
+        return JSONResponse(status_code=HTTPStatus.TOO_MANY_REQUESTS, content={'reason': str(exc)})
 
 if __name__ == "__main__":
     import uvicorn
