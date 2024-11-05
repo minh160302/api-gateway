@@ -21,8 +21,10 @@ async def test_concurrent_requests():
             print(f"Response {i + 1}: {response.json()}")
 
 
+# Sequential run
 @pytest.mark.asyncio
 async def test_should_raise_rate_limit_error():
+    await asyncio.sleep(5)
     # Reset cache
     url = "http://127.0.0.1:8000/s1"  # Replace with your endpoint
     number_of_requests = 105
@@ -35,19 +37,15 @@ async def test_should_raise_rate_limit_error():
     # Create a list of tasks to send requests concurrently
     tasks = [send_request() for _ in range(number_of_requests)]
 
-    # Gather the results of all requests
-    responses = await asyncio.gather(*tasks)
-
     freq = {
         200: 0,
         429: 0
     }
-    # Assert each response status code
-    for i, response in enumerate(responses):
-        print(f"Response {i + 1}: {str(response)}")
+    for _ in range(number_of_requests):
+        response = await send_request()
         assert response.status_code == 200 or response.status_code == 429
         freq[response.status_code] += 1
         print(response.json())  # Prints the JSON response
 
     print(freq)
-    # assert freq[429] == number_of_requests - 100
+    assert freq[429] == number_of_requests - 100

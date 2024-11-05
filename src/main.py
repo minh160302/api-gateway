@@ -13,6 +13,8 @@ from errors import IncorrectRouteError, OnStartUpError, RateLimitExceededError
 from models import GatewayConfiguration, database, redis
 from utils import utils
 
+import asyncio
+from typing import Dict
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,6 +33,10 @@ async def lifespan(app: FastAPI):
         # 3. Create database for persistent API infos
         await database.init()
         app.state.redis = await redis.init()
+        
+        # Dictionary to hold queues for each token
+        queues: Dict[str, asyncio.Queue] = {}
+        app.state.request_queues = queues
         ###########
         yield
         ###########
@@ -67,14 +73,14 @@ async def auth_middleware(request: Request, call_next):
     try:
         redis_client: Redis = app.state.redis
         
+        # Rate Limit
         await ratelimit.check_rate_limit(redis_client, token)        
         await ratelimit.endpoint_hit(redis_client, token)
-        
+
         
         response = await routing.route_request(settings.GwConfig, settings.endpoint_mappings, request)
         content = response.json() if response.headers.get(
             "content-type") == "application/json" else response.text
-
 
         return JSONResponse(status_code=response.status_code, content=content, headers=response.headers)
     except IncorrectRouteError as exc:
